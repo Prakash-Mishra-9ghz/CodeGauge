@@ -1,11 +1,14 @@
 package io.codegauge.cli;
 
 import io.codegauge.analyzer.DependencyAnalyzer;
+import io.codegauge.analyzer.DocumentationAnalyzer;
 import io.codegauge.analyzer.MetricsAnalyzer;
 import io.codegauge.core.DependencyResult;
+import io.codegauge.core.DocumentationResult;
 import io.codegauge.core.MetricsResult;
 import io.codegauge.core.Repository;
 import io.codegauge.parser.JavaParserFileParser;
+import io.codegauge.parser.MarkdownReadmeParser;
 import io.codegauge.parser.MavenPomParser;
 import io.codegauge.scanner.FileSystemRepositoryScanner;
 import io.codegauge.scanner.RepositoryScanner;
@@ -38,6 +41,7 @@ final class AnalyzeCommand implements Callable<Integer> {
     private final RepositoryScanner scanner = new FileSystemRepositoryScanner();
     private final MetricsAnalyzer metricsAnalyzer = new MetricsAnalyzer(new JavaParserFileParser());
     private final DependencyAnalyzer dependencyAnalyzer = new DependencyAnalyzer(new MavenPomParser());
+    private final DocumentationAnalyzer documentationAnalyzer = new DocumentationAnalyzer(new MarkdownReadmeParser());
 
     @Override
     public Integer call() {
@@ -54,6 +58,7 @@ final class AnalyzeCommand implements Callable<Integer> {
 
         MetricsResult metrics = metricsAnalyzer.analyze(repository);
         DependencyResult dependencies = dependencyAnalyzer.analyze(repository);
+        DocumentationResult documentation = documentationAnalyzer.analyze(repository);
 
         System.out.println("Repository Summary");
         System.out.println("------------------------------");
@@ -86,6 +91,7 @@ final class AnalyzeCommand implements Callable<Integer> {
         System.out.println();
 
         DependenciesCommand.printDependencyReport(dependencies);
+        DocsCommand.printDocumentationReport(documentation);
 
         System.out.printf("(format=%s — health score and export arrive in later milestones)%n",
                 parent.outputFormat());
