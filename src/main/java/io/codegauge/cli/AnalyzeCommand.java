@@ -1,9 +1,12 @@
 package io.codegauge.cli;
 
+import io.codegauge.analyzer.DependencyAnalyzer;
 import io.codegauge.analyzer.MetricsAnalyzer;
+import io.codegauge.core.DependencyResult;
 import io.codegauge.core.MetricsResult;
 import io.codegauge.core.Repository;
 import io.codegauge.parser.JavaParserFileParser;
+import io.codegauge.parser.MavenPomParser;
 import io.codegauge.scanner.FileSystemRepositoryScanner;
 import io.codegauge.scanner.RepositoryScanner;
 import picocli.CommandLine.Command;
@@ -15,12 +18,13 @@ import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
 /**
- * {@code codegauge analyze <path>} — repository scan plus source code metrics.
+ * {@code codegauge analyze <path>} — repository scan, source code metrics,
+ * and dependency analysis.
  *
- * <p>Dependency/documentation analysis, code smells, and the health score
- * are not yet computed — those arrive in v0.5 onward via
- * {@code io.codegauge.analyzer.AnalysisManager}, which will orchestrate
- * multiple {@code Analyzer}s once more than one exists.
+ * <p>Documentation analysis, code smells, and the health score are not yet
+ * computed — those arrive in v0.6 onward via
+ * {@code io.codegauge.analyzer.AnalysisManager}, which will orchestrate all
+ * {@code Analyzer}s once there are enough of them to warrant it.
  */
 @Command(name = "analyze", description = "Run full repository analysis.")
 final class AnalyzeCommand implements Callable<Integer> {
@@ -33,6 +37,7 @@ final class AnalyzeCommand implements Callable<Integer> {
 
     private final RepositoryScanner scanner = new FileSystemRepositoryScanner();
     private final MetricsAnalyzer metricsAnalyzer = new MetricsAnalyzer(new JavaParserFileParser());
+    private final DependencyAnalyzer dependencyAnalyzer = new DependencyAnalyzer(new MavenPomParser());
 
     @Override
     public Integer call() {
@@ -48,6 +53,7 @@ final class AnalyzeCommand implements Callable<Integer> {
         }
 
         MetricsResult metrics = metricsAnalyzer.analyze(repository);
+        DependencyResult dependencies = dependencyAnalyzer.analyze(repository);
 
         System.out.println("Repository Summary");
         System.out.println("------------------------------");
@@ -55,6 +61,7 @@ final class AnalyzeCommand implements Callable<Integer> {
         System.out.printf("Files          %d%n", repository.fileCount());
         System.out.printf("Directories    %d%n", repository.directoryCount());
         System.out.println();
+
         System.out.println("Source Code Metrics (Java)");
         System.out.println("------------------------------");
         System.out.printf("Java Files         %d%n", metrics.javaFileCount());
@@ -77,6 +84,9 @@ final class AnalyzeCommand implements Callable<Integer> {
                     metrics.largestFilePath(), metrics.largestFileLines());
         }
         System.out.println();
+
+        DependenciesCommand.printDependencyReport(dependencies);
+
         System.out.printf("(format=%s — health score and export arrive in later milestones)%n",
                 parent.outputFormat());
         return 0;

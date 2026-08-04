@@ -5,7 +5,7 @@ import picocli.CommandLine;
 /**
  * Application entry point.
  *
- * <p>As of v0.4, argument parsing and subcommand dispatch is delegated to
+ * <p>As of v0.5, argument parsing and subcommand dispatch is delegated to
  * Picocli via {@link RootCommand}. This class only wires up
  * {@link CommandLine} and translates its exit code to the process exit
  * code.
@@ -13,7 +13,7 @@ import picocli.CommandLine;
 public final class Main {
 
     /** CodeGauge's current version, surfaced by {@code --version}. */
-    public static final String VERSION = "0.4.0";
+    public static final String VERSION = "0.5.0";
 
     private Main() {
         // Entry point class; not instantiable.
