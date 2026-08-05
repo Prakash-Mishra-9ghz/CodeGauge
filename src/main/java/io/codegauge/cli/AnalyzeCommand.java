@@ -1,10 +1,14 @@
 package io.codegauge.cli;
 
+import io.codegauge.analyzer.AnalysisManager;
 import io.codegauge.analyzer.DependencyAnalyzer;
 import io.codegauge.analyzer.DocumentationAnalyzer;
+import io.codegauge.analyzer.HealthScoreCalculator;
 import io.codegauge.analyzer.MetricsAnalyzer;
+import io.codegauge.core.AnalysisResult;
 import io.codegauge.core.DependencyResult;
 import io.codegauge.core.DocumentationResult;
+import io.codegauge.core.HealthScoreResult;
 import io.codegauge.core.MetricsResult;
 import io.codegauge.core.Repository;
 import io.codegauge.parser.JavaParserFileParser;
@@ -18,16 +22,16 @@ import picocli.CommandLine.Parameters;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * {@code codegauge analyze <path>} — repository scan, source code metrics,
- * and dependency analysis.
+ * {@code codegauge analyze <path>} — full repository analysis: scan,
+ * metrics, dependencies, documentation, and an aggregated health score.
  *
- * <p>Documentation analysis, code smells, and the health score are not yet
- * computed — those arrive in v0.6 onward via
- * {@code io.codegauge.analyzer.AnalysisManager}, which will orchestrate all
- * {@code Analyzer}s once there are enough of them to warrant it.
+ * <p>Since v0.7, analyzer orchestration goes through
+ * {@link AnalysisManager} rather than this class constructing and calling
+ * each analyzer directly — see {@code AnalysisManager}'s javadoc for why.
  */
 @Command(name = "analyze", description = "Run full repository analysis.")
 final class AnalyzeCommand implements Callable<Integer> {
@@ -39,9 +43,14 @@ final class AnalyzeCommand implements Callable<Integer> {
     private String path;
 
     private final RepositoryScanner scanner = new FileSystemRepositoryScanner();
-    private final MetricsAnalyzer metricsAnalyzer = new MetricsAnalyzer(new JavaParserFileParser());
-    private final DependencyAnalyzer dependencyAnalyzer = new DependencyAnalyzer(new MavenPomParser());
-    private final DocumentationAnalyzer documentationAnalyzer = new DocumentationAnalyzer(new MarkdownReadmeParser());
+
+    private final AnalysisManager analysisManager = new AnalysisManager(List.of(
+            new MetricsAnalyzer(new JavaParserFileParser()),
+            new DependencyAnalyzer(new MavenPomParser()),
+            new DocumentationAnalyzer(new MarkdownReadmeParser())
+    ));
+
+    private final HealthScoreCalculator healthScoreCalculator = new HealthScoreCalculator();
 
     @Override
     public Integer call() {
@@ -56,9 +65,11 @@ final class AnalyzeCommand implements Callable<Integer> {
             return 1;
         }
 
-        MetricsResult metrics = metricsAnalyzer.analyze(repository);
-        DependencyResult dependencies = dependencyAnalyzer.analyze(repository);
-        DocumentationResult documentation = documentationAnalyzer.analyze(repository);
+        List<AnalysisResult> results = analysisManager.runAll(repository);
+        MetricsResult metrics = AnalysisManager.findResult(results, MetricsResult.class);
+        DependencyResult dependencies = AnalysisManager.findResult(results, DependencyResult.class);
+        DocumentationResult documentation = AnalysisManager.findResult(results, DocumentationResult.class);
+        HealthScoreResult health = healthScoreCalculator.calculate(metrics, dependencies, documentation);
 
         System.out.println("Repository Summary");
         System.out.println("------------------------------");
@@ -67,6 +78,16 @@ final class AnalyzeCommand implements Callable<Integer> {
         System.out.printf("Directories    %d%n", repository.directoryCount());
         System.out.println();
 
+        printMetrics(metrics);
+        DependenciesCommand.printDependencyReport(dependencies);
+        DocsCommand.printDocumentationReport(documentation);
+        printHealthScore(health);
+
+        System.out.printf("(format=%s — export arrives in later milestones)%n", parent.outputFormat());
+        return 0;
+    }
+
+    private static void printMetrics(MetricsResult metrics) {
         System.out.println("Source Code Metrics (Java)");
         System.out.println("------------------------------");
         System.out.printf("Java Files         %d%n", metrics.javaFileCount());
@@ -89,12 +110,20 @@ final class AnalyzeCommand implements Callable<Integer> {
                     metrics.largestFilePath(), metrics.largestFileLines());
         }
         System.out.println();
+    }
 
-        DependenciesCommand.printDependencyReport(dependencies);
-        DocsCommand.printDocumentationReport(documentation);
+    private static void printHealthScore(HealthScoreResult health) {
+        System.out.println("Repository Health Score");
+        System.out.println("------------------------------");
+        System.out.printf("Documentation      %.1f / 10%n", health.documentationScore());
+        System.out.printf("Dependencies       %s%n", formatComponent(health.dependencyScore()));
+        System.out.printf("Maintainability    %s%n", formatComponent(health.maintainabilityScore()));
+        System.out.println();
+        System.out.printf("Overall            %.1f / 10%n", health.overallScore());
+        System.out.println();
+    }
 
-        System.out.printf("(format=%s — health score and export arrive in later milestones)%n",
-                parent.outputFormat());
-        return 0;
+    private static String formatComponent(Double score) {
+        return score == null ? "N/A" : String.format("%.1f / 10", score);
     }
 }
