@@ -14,6 +14,10 @@ import io.codegauge.core.Repository;
 import io.codegauge.parser.JavaParserFileParser;
 import io.codegauge.parser.MarkdownReadmeParser;
 import io.codegauge.parser.MavenPomParser;
+import io.codegauge.report.ConsoleReportExporter;
+import io.codegauge.report.JsonReportExporter;
+import io.codegauge.report.ReportExporter;
+import io.codegauge.report.RepositoryReport;
 import io.codegauge.scanner.FileSystemRepositoryScanner;
 import io.codegauge.scanner.RepositoryScanner;
 import picocli.CommandLine.Command;
@@ -27,11 +31,10 @@ import java.util.concurrent.Callable;
 
 /**
  * {@code codegauge analyze <path>} — full repository analysis: scan,
- * metrics, dependencies, documentation, and an aggregated health score.
+ * metrics, dependencies, documentation, health score, and export.
  *
- * <p>Since v0.7, analyzer orchestration goes through
- * {@link AnalysisManager} rather than this class constructing and calling
- * each analyzer directly — see {@code AnalysisManager}'s javadoc for why.
+ * <p>Since v0.8, output goes through a {@link ReportExporter} rather than
+ * this class printing directly — see {@code report}'s package-info for why.
  */
 @Command(name = "analyze", description = "Run full repository analysis.")
 final class AnalyzeCommand implements Callable<Integer> {
@@ -71,59 +74,21 @@ final class AnalyzeCommand implements Callable<Integer> {
         DocumentationResult documentation = AnalysisManager.findResult(results, DocumentationResult.class);
         HealthScoreResult health = healthScoreCalculator.calculate(metrics, dependencies, documentation);
 
-        System.out.println("Repository Summary");
-        System.out.println("------------------------------");
-        System.out.printf("Project        %s%n", repository.name());
-        System.out.printf("Files          %d%n", repository.fileCount());
-        System.out.printf("Directories    %d%n", repository.directoryCount());
-        System.out.println();
+        RepositoryReport report = new RepositoryReport(repository, metrics, dependencies, documentation, health);
 
-        printMetrics(metrics);
-        DependenciesCommand.printDependencyReport(dependencies);
-        DocsCommand.printDocumentationReport(documentation);
-        printHealthScore(health);
-
-        System.out.printf("(format=%s — export arrives in later milestones)%n", parent.outputFormat());
+        System.out.println(selectExporter().export(report));
         return 0;
     }
 
-    private static void printMetrics(MetricsResult metrics) {
-        System.out.println("Source Code Metrics (Java)");
-        System.out.println("------------------------------");
-        System.out.printf("Java Files         %d%n", metrics.javaFileCount());
-        System.out.printf("Lines of Code      %d%n", metrics.totalLinesOfCode());
-        System.out.printf("Classes            %d%n", metrics.classCount());
-        System.out.printf("Interfaces         %d%n", metrics.interfaceCount());
-        System.out.printf("Enums              %d%n", metrics.enumCount());
-        System.out.printf("Records            %d%n", metrics.recordCount());
-        System.out.printf("Methods            %d%n", metrics.methodCount());
-        System.out.printf("Fields             %d%n", metrics.fieldCount());
-        System.out.printf("Constructors       %d%n", metrics.constructorCount());
-        System.out.printf("Avg Method Length  %.1f lines%n", metrics.averageMethodLength());
-        System.out.printf("Avg Class Size     %.1f lines%n", metrics.averageClassSize());
-        if (metrics.largestClassLines() > 0) {
-            System.out.printf("Largest Class      %s (%d lines)%n",
-                    metrics.largestClassName(), metrics.largestClassLines());
-        }
-        if (metrics.largestFilePath() != null) {
-            System.out.printf("Largest File       %s (%d lines)%n",
-                    metrics.largestFilePath(), metrics.largestFileLines());
-        }
-        System.out.println();
-    }
-
-    private static void printHealthScore(HealthScoreResult health) {
-        System.out.println("Repository Health Score");
-        System.out.println("------------------------------");
-        System.out.printf("Documentation      %.1f / 10%n", health.documentationScore());
-        System.out.printf("Dependencies       %s%n", formatComponent(health.dependencyScore()));
-        System.out.printf("Maintainability    %s%n", formatComponent(health.maintainabilityScore()));
-        System.out.println();
-        System.out.printf("Overall            %.1f / 10%n", health.overallScore());
-        System.out.println();
-    }
-
-    private static String formatComponent(Double score) {
-        return score == null ? "N/A" : String.format("%.1f / 10", score);
+    private ReportExporter selectExporter() {
+        return switch (parent.outputFormat()) {
+            case JSON -> new JsonReportExporter();
+            case CONSOLE -> new ConsoleReportExporter();
+            case HTML, CSV -> {
+                System.err.printf("(%s export not yet implemented — falling back to console)%n",
+                        parent.outputFormat());
+                yield new ConsoleReportExporter();
+            }
+        };
     }
 }
