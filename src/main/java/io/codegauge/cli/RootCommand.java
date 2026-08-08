@@ -2,6 +2,7 @@ package io.codegauge.cli;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.ScopeType;
 
 /**
  * Root command: {@code codegauge}.
@@ -30,19 +31,15 @@ public final class RootCommand {
      * exporters for JSON/HTML/CSV are introduced in v0.8/v0.9 and will read
      * this field. Only one may be set at a time.
      */
-    @Option(names = "--json", description = "Export report as JSON.")
+    @Option(names = "--json", description = "Export report as JSON.",  scope = ScopeType.INHERIT)
     boolean json;
 
-    @Option(names = "--html", description = "Export report as HTML.")
+    @Option(names = "--html", description = "Export report as HTML.",  scope = ScopeType.INHERIT)
     boolean html;
 
-    @Option(names = "--csv", description = "Export report as CSV.")
+    @Option(names = "--csv", description = "Export report as CSV.",  scope = ScopeType.INHERIT)
     boolean csv;
 
-    /**
-     * @return the requested output format, defaulting to {@link OutputFormat#CONSOLE}
-     * @throws picocli.CommandLine.ParameterException if more than one format flag was set
-     */
     OutputFormat outputFormat() {
         int count = (json ? 1 : 0) + (html ? 1 : 0) + (csv ? 1 : 0);
         if (count > 1) {

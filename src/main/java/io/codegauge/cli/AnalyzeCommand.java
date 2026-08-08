@@ -15,6 +15,7 @@ import io.codegauge.parser.JavaParserFileParser;
 import io.codegauge.parser.MarkdownReadmeParser;
 import io.codegauge.parser.MavenPomParser;
 import io.codegauge.report.ConsoleReportExporter;
+import io.codegauge.report.HtmlReportExporter;
 import io.codegauge.report.JsonReportExporter;
 import io.codegauge.report.ReportExporter;
 import io.codegauge.report.RepositoryReport;
@@ -83,10 +84,10 @@ final class AnalyzeCommand implements Callable<Integer> {
     private ReportExporter selectExporter() {
         return switch (parent.outputFormat()) {
             case JSON -> new JsonReportExporter();
+            case HTML -> new HtmlReportExporter();
             case CONSOLE -> new ConsoleReportExporter();
-            case HTML, CSV -> {
-                System.err.printf("(%s export not yet implemented — falling back to console)%n",
-                        parent.outputFormat());
+            case CSV -> {
+                System.err.println("(CSV export not planned for v1.0 — falling back to console)");
                 yield new ConsoleReportExporter();
             }
         };
