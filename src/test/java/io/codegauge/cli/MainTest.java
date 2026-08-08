@@ -67,9 +67,20 @@ class MainTest {
     }
 
     @Test
-    void rejectsMultipleOutputFormatFlags() {
-        CommandLine cmd = new CommandLine(new RootCommand());
-        int exitCode = cmd.execute("analyze", ".", "--json", "--html");
-        assertTrue(exitCode != 0, "conflicting format flags should fail");
+    void rejectsMultipleOutputFormatFlagsWithCleanErrorNotStackTrace() {
+        ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        System.setErr(new PrintStream(capturedErr));
+        try {
+            CommandLine cmd = new CommandLine(new RootCommand());
+            int exitCode = cmd.execute("analyze", ".", "--json", "--html");
+
+            assertEquals(1, exitCode);
+            String err = capturedErr.toString();
+            assertTrue(err.contains("Only one of --json, --html, --csv may be specified"));
+            assertTrue(!err.contains("at io.codegauge"), "should not print a Java stack trace to the user");
+        } finally {
+            System.setErr(originalErr);
+        }
     }
 }

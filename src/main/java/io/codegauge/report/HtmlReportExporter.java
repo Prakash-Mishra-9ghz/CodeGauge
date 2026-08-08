@@ -58,7 +58,7 @@ public final class HtmlReportExporter implements ReportExporter {
                 <html lang="en">
                 <head>
                 <meta charset="UTF-8">
-                <title>CodeGauge Report — %s</title>
+                <title>CodeGauge Report - %s</title>
                 <style>%s</style>
                 </head>
                 <body>

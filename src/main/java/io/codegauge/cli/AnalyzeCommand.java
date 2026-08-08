@@ -58,6 +58,14 @@ final class AnalyzeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        OutputFormat format;
+        try {
+            format = parent.outputFormat();
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: " + e.getMessage());
+            return 1;
+        }
+
         Repository repository;
         try {
             repository = scanner.scan(Path.of(path));
@@ -77,12 +85,12 @@ final class AnalyzeCommand implements Callable<Integer> {
 
         RepositoryReport report = new RepositoryReport(repository, metrics, dependencies, documentation, health);
 
-        System.out.println(selectExporter().export(report));
+        System.out.println(exporterFor(format).export(report));
         return 0;
     }
 
-    private ReportExporter selectExporter() {
-        return switch (parent.outputFormat()) {
+    private ReportExporter exporterFor(OutputFormat format) {
+        return switch (format) {
             case JSON -> new JsonReportExporter();
             case HTML -> new HtmlReportExporter();
             case CONSOLE -> new ConsoleReportExporter();
